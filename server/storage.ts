@@ -37,7 +37,8 @@ interface DatabaseSchema {
   changes: DeltaChange[];
 }
 
-const DATA_DIR = path.resolve(process.cwd(), '.data');
+const IS_VERCEL = Boolean(process.env.VERCEL || process.env.NOW_REGION || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'dkb_data') : path.resolve(process.cwd(), '.data');
 const DB_FILE = path.join(DATA_DIR, 'database.json');
 
 class StorageManager {
@@ -51,8 +52,21 @@ class StorageManager {
   }
 
   private ensureDataDir() {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      // If deployed on Vercel, copy bundled seed data to /tmp if not already present
+      if (IS_VERCEL && !fs.existsSync(DB_FILE)) {
+        const bundledDb = path.resolve(process.cwd(), '.data', 'database.json');
+        if (fs.existsSync(bundledDb)) {
+          try {
+            fs.copyFileSync(bundledDb, DB_FILE);
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('[Storage] ensureDataDir exception:', err);
     }
   }
 
@@ -117,10 +131,14 @@ class StorageManager {
   }
 
   private saveDbSync(db: DatabaseSchema) {
-    this.ensureDataDir();
-    const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(db, null, 2), 'utf-8');
-    fs.renameSync(tempFile, DB_FILE);
+    try {
+      this.ensureDataDir();
+      const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
+      fs.writeFileSync(tempFile, JSON.stringify(db, null, 2), 'utf-8');
+      fs.renameSync(tempFile, DB_FILE);
+    } catch (err) {
+      console.warn('[Storage] saveDbSync error (ephemeral cache active):', err);
+    }
   }
 
   private async mutate<T>(updater: (db: DatabaseSchema) => Promise<T> | T): Promise<T> {

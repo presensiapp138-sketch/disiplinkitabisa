@@ -36,39 +36,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenUnlockM
     settings,
   } = useApp();
 
-  const isHomeroomUnlocked = session?.lockedMenuRole === 'homeroom';
-  const isStudentAffairsUnlocked = session?.lockedMenuRole === 'student_affairs';
-  const isAdminUnlocked = session?.lockedMenuRole === 'admin';
+  const isHomeroomUnlocked = session?.lockedMenuRole === 'homeroom' && activeTab === 'homeroom';
+  const isStudentAffairsUnlocked = session?.lockedMenuRole === 'student_affairs' && activeTab === 'student_affairs';
+  const isAdminUnlocked = session?.lockedMenuRole === 'admin' && activeTab === 'admin';
 
   const handleMenuClick = (tab: ActiveTab) => {
     onClose();
+
+    // If clicking current active tab, keep current state
+    if (tab === activeTab) return;
+
+    // Protected menus ALWAYS require password authentication every time they are opened from another menu
     if (tab === 'homeroom') {
-      if (isHomeroomUnlocked) {
-        setActiveTab('homeroom');
-      } else {
-        onOpenUnlockModal?.('homeroom');
-      }
+      onOpenUnlockModal?.('homeroom');
       return;
     }
 
     if (tab === 'student_affairs') {
-      if (isStudentAffairsUnlocked) {
-        setActiveTab('student_affairs');
-      } else {
-        onOpenUnlockModal?.('student_affairs');
-      }
+      onOpenUnlockModal?.('student_affairs');
       return;
     }
 
     if (tab === 'admin') {
-      if (isAdminUnlocked) {
-        setActiveTab('admin');
-      } else {
-        onOpenUnlockModal?.('admin');
-      }
+      onOpenUnlockModal?.('admin');
       return;
     }
 
+    // Navigating to general duty menus: auto-locks any previously unlocked role via setActiveTab
     setActiveTab(tab);
   };
 

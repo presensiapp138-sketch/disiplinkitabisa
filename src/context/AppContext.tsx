@@ -181,13 +181,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [session, setSession] = useState<AuthSession | null>(() => {
     try {
       const saved = localStorage.getItem('dkb_session');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // Ensure privileged roles always start locked on reload or startup
+      return {
+        ...parsed,
+        lockedMenuRole: undefined,
+        lockedMenuClassId: undefined,
+        lockedMenuExpiresAt: undefined,
+      };
     } catch {
       return null;
     }
   });
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [activeTab, setActiveTabState] = useState<ActiveTab>('dashboard');
+
+  // Auto-lock admin, wali kelas, and kesiswaan whenever switching between menus
+  const setActiveTab = useCallback((newTab: ActiveTab) => {
+    setActiveTabState((prevTab) => {
+      if (prevTab !== newTab) {
+        setSession((currentSession) => {
+          if (currentSession && currentSession.lockedMenuRole && currentSession.lockedMenuRole !== newTab) {
+            const updated: AuthSession = {
+              ...currentSession,
+              lockedMenuRole: undefined,
+              lockedMenuClassId: undefined,
+              lockedMenuExpiresAt: undefined,
+            };
+            try {
+              localStorage.setItem('dkb_session', JSON.stringify(updated));
+            } catch {}
+            return updated;
+          }
+          return currentSession;
+        });
+      }
+      return newTab;
+    });
+  }, []);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'synced');
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(new Date());
   const [currentServerTime, setCurrentServerTime] = useState<Date>(getServerNow());
